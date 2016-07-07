@@ -10,7 +10,7 @@ from ctypes import create_string_buffer, c_double, c_int32, c_uint32, byref
 import numpy as np
 import PyDAQmx as mx
 
-from instrumental import Q_
+from Instrumental.instrumental import Q_
 from . import DAQ
 from .. import _ParamDict
 from ...errors import Error, InstrumentTypeError
@@ -330,25 +330,25 @@ class _Task(object):
         self.chans.append(do_name)
         self.t.CreateDOChan(do_name, None, mx.DAQmx_Val_ChanForAllLines)
 
-    def add_AI_channel(self, ai, name=None, min_val=None, max_val=None):
+    def add_AI_channel(self, ai, name=None, min_val=None, max_val=None, range = 10):#BTS 7/7/2016
         """ Adds an analog input channel (or channels) to the task """
         ai_name = self._handle_ai(ai)
         ch_name = self._handle_ch_name(name, ai_name)
         self.AIs.append(ch_name)
-        min_mag, max_mag = self._handle_minmax_AI(min_val, max_val)
+        #min_mag, max_mag = self._handle_minmax_AI(min_val, max_val)
         self.t.CreateAIVoltageChan(ai_name, ch_name,
-                                   mx.DAQmx_Val_Cfg_Default, min_mag, max_mag,
+                                   mx.DAQmx_Val_Cfg_Default, -range, range, #BTS 7/7/2016
                                    mx.DAQmx_Val_Volts, None)
         return ch_name
 
-    def add_AO_channel(self, ao, name=None, min_val=None, max_val=None):
+    def add_AO_channel(self, ao, name=None, min_val=None, max_val=None, range=10):#BTS 7/7/2016
         """ Adds an analog output channel (or channels) to the task """
         ao_name = self._handle_ao(ao)
         ch_name = self._handle_ch_name(name, ao_name)
         self.AOs.append(ch_name)
-        min_mag, max_mag = self._handle_minmax_AO(min_val, max_val)
+        #min_mag, max_mag = self._handle_minmax_AO(min_val, max_val)
         self.t.CreateAOVoltageChan(ao_name, ch_name,
-                                   min_mag, max_mag,
+                                    -range, range, #BTS 7/7/2016
                                    mx.DAQmx_Val_Volts, None)
         return ch_name
 
@@ -503,18 +503,29 @@ class Channel(object):
 
 
 class AnalogIn(Channel):
-    def __init__(self, dev, chan_name):
+    def __init__(self, dev, chan_name, range): # BTS 7/7/2016 added range arg
         self.dev = dev
-        self.name = chan_name
         self.type = 'AI'
+        self.name = chan_name
         self.fullname = '{}/{}'.format(dev, chan_name)
+        #### BTS 7/7/2016 ####
+        ranges = [r[1] for r in self.dev.get_AI_ranges()]
+        if range not in ranges:
+            print('Invalid input range! DAQ input range set to +/-10 V. DAQ input range must be one of the following: %s' %''.join(str(ranges)))
+            range = 10
+        self.range = range 
+        #### BTS 7/7/2016 ####
 
+        
     def _add_to_task(self, mx_task):
-        min_mag, max_mag = self.dev.get_AI_max_range()
+    ### BTS 7/7/2016
+        # min_mag, max_mag = self.dev.get_AO_max_range()
         mx_task.CreateAIVoltageChan(self.fullname, None,
-                                    mx.DAQmx_Val_Cfg_Default, min_mag, max_mag,
+                                    mx.DAQmx_Val_Cfg_Default, -self.range, self.range,
                                     mx.DAQmx_Val_Volts, None)
 
+    ### BTS 7/7/2016
+    
     def read(self, duration=None, fsamp=None, n_samples=None):
         """Read one or more analog input samples.
         By default, reads and returns a single sample. If two of `duration`, `fsamp`,
@@ -535,7 +546,7 @@ class AnalogIn(Channel):
             The data that was read from analog input.
         """
         with self.dev.create_task() as t:
-            t.add_AI_channel(self.name)
+            t.add_AI_channel(self.name, range=self.range) #BTS 7/7/2016
             
             num_specified = sum(int(arg is not None) for arg in (duration, fsamp, n_samples))
 
@@ -551,21 +562,31 @@ class AnalogIn(Channel):
 
 
 class AnalogOut(Channel):
-    def __init__(self, dev, chan_name):
+    def __init__(self, dev, chan_name, range): # BTS 7/7/2016 added range arg
         self.dev = dev
         self.type = 'AO'
         self.name = chan_name
         self.fullname = '{}/{}'.format(dev, chan_name)
+        #### BTS 7/7/2016 ####
+        ranges = [r[1] for r in self.dev.get_AO_ranges()]
+        if range not in ranges:
+            range = 10
+            raise Exception('Invalid output range! DAQ output range set to +/-10 V. DAQ output range must be one of the following: %s' %''.join(str(ranges)))
+        self.range = range 
+        #### BTS 7/7/2016 ####
 
+        
     def _add_to_task(self, mx_task):
-        min_mag, max_mag = self.dev.get_AO_max_range()
+    ### BTS 7/7/2016
+        # min_mag, max_mag = self.dev.get_AO_max_range()
         mx_task.CreateAOVoltageChan(self.fullname, None,
-                                    min_mag, max_mag,
+                                    -self.range, self.range,
                                     mx.DAQmx_Val_Volts, None)
-
+    ### BTS 7/7/2016
+                                    
     def _write_scalar(self, value):
         with self.dev.create_task() as t:
-            t.add_AO_channel(self.name)
+            t.add_AO_channel(self.name, range = self.range) #BTS7/7/2016
             t.write_AO_scalar(value)
 
     def read(self, duration=None, fsamp=None, n_samples=None):
@@ -591,7 +612,7 @@ class AnalogOut(Channel):
         with self.dev.create_task() as t:
             internal_channel_name = "_{}_vs_aognd".format(self.name)
             try:
-                t.add_AI_channel(internal_channel_name)
+                t.add_AI_channel(internal_channel_name, range=self.range) # BTS 7/7/2016 
             except mx.DAQError as e:
                 if e.error != -200170:
                     raise
@@ -664,7 +685,7 @@ class AnalogOut(Channel):
         fsamp, n_samples = _handle_timing_params(duration, fsamp, len(data))
 
         with self.dev.create_task() as t:
-            t.add_AO_channel(self.name)
+            t.add_AO_channel(self.name, range=self.range) #BTS 7/7/2016
             t.set_AO_only_onboard_mem(self.name, onboard)
             t.config_timing(fsamp, n_samples)
 
@@ -1006,13 +1027,17 @@ _internal_channels = {
 
 
 class NIDAQ(DAQ):
-    def __init__(self, dev_name):
+    def __init__(self, dev_name, ai_range = 10, ao_range = 10):
         """
         Constructor for an NIDAQ object. End users should not use this
         directly, and should instead use
         :py:func:`~instrumental.drivers.instrument`
         """
         self.name = dev_name
+                
+        self.ai_range = ai_range
+        self.ao_range = ao_range
+        
         self.tasks = []
         self._load_analog_channels()
         self._load_internal_channels()
@@ -1027,15 +1052,15 @@ class NIDAQ(DAQ):
 
     def _load_analog_channels(self):
         for ai_name in self.get_AI_channels():
-            setattr(self, ai_name, AnalogIn(self, ai_name))
+            setattr(self, ai_name, AnalogIn(self, ai_name, self.ai_range))
 
         for ao_name in self.get_AO_channels():
-            setattr(self, ao_name, AnalogOut(self, ao_name))
+            setattr(self, ao_name, AnalogOut(self, ao_name, self.ao_range))
 
     def _load_internal_channels(self):
         ch_names = _internal_channels.get(self.get_product_category(), [])
         for ch_name in ch_names:
-            setattr(self, ch_name, AnalogIn(self, ch_name))
+            setattr(self, ch_name, AnalogIn(self, ch_name, self.ai_range))
 
     def _load_counters(self):
         for c_name in self.get_CI_channels():

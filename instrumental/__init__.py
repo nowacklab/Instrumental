@@ -89,11 +89,13 @@ class module(ModuleType):
         return result
 
 # Keep a reference to this module so that it's not garbage collected
-old_module = sys.modules['instrumental']
-
+try:
+    old_module = sys.modules['instrumental']
+except:
+    pass
 # Setup the new module and patch it into the dict of loaded modules
 # Make sure to include all existing variables you want to copy over
-new_module = sys.modules['instrumental'] = module('instrumental')
+new_module = module('instrumental')
 new_module.__dict__.update({
     '__file__': __file__,
     '__package__': 'instrumental',
@@ -105,3 +107,4 @@ new_module.__dict__.update({
     'u': u,
     'Q_': Q_
 })
+
