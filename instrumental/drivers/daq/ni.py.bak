@@ -6,6 +6,7 @@ Driver module for NI-DAQmx-supported hardware.
 
 from __future__ import print_function, division, unicode_literals
 
+from collections import OrderedDict
 from ctypes import create_string_buffer, c_double, c_int32, c_uint32, byref
 import numpy as np
 import PyDAQmx as mx
@@ -55,29 +56,20 @@ class Task(object):
     """
     def __init__(self, *args):
         """Creates a task that uses the given channels.
+
         Each arg can either be a Channel or a tuple of (Channel, name_str)
         """
-        self.channels = {}
+        self.channels = OrderedDict()
         self._mxtasks = {}
         self.AOs, self.AIs, self.DOs, self.DIs, self.COs, self.CIs = [], [], [], [], [], []
         TYPED_CHANNELS = {'AO': self.AOs, 'AI': self.AIs, 'DO': self.DOs,
                           'DI': self.DIs, 'CO': self.COs, 'CI': self.CIs}
-        channelarg = []
-        namearg = []
         for arg in args:
             if isinstance(arg, Channel):
-                channelarg.append(arg)
-                namearg.append(arg.name)
+                channel = arg
+                name = channel.name
             else:
                 channel, name = arg
-                channelarg.append(channel)
-                namearg.append(channel.name)
-        
-        from re import split
-        namearg, channelarg = zip(*sorted(zip(namearg, channelarg), key=lambda x: [int(y) if y.isdigit() else y for y in split('(\d+)', x[0])])) # sort by name/number
-        for i in range(len(channelarg)):
-            channel = channelarg[i]
-            name = namearg[i]
 
             if name in self.channels:
                 raise Exception("Duplicate channel name {}".format(name))
@@ -120,9 +112,9 @@ class Task(object):
 
         for typ, task in self._mxtasks.items():
             if typ == self.master_type:
-                clock = bytes('', 'utf-8') #BTS 4/27/2016
+                clock = bytes('')
             else:
-                clock = bytes(master_clock, 'utf-8') #BTS 4/27/2016
+                clock = bytes(master_clock)
 
             task.CfgSampClkTiming(clock, fsamp, edge, sample_mode, n_samples)
 
@@ -136,7 +128,7 @@ class Task(object):
             if ch.type in ('AO', 'DO', 'CO') and ch_name not in write_data:
                 raise Exception('write_data missing an array for output channel {}'
                                 .format(ch_name))
-                                
+
         # Then set up writes for each channel, don't auto-start
         self._write_AO_channels(write_data)
         # self.write_DO_channels()
@@ -184,14 +176,13 @@ class Task(object):
     def _write_AO_channels(self, data):
         task = self._mxtasks['AO']
         ao_names = [name for (name, ch) in self.channels.items() if ch.type == 'AO']
-        ao_names.sort(key=lambda x: [int(s) if s.isdigit() else s for s in x.split()]) # key = function sorts by number preferentially
         arr = np.concatenate([Q_(data[ao]).to('V').magnitude for ao in ao_names])
         arr = arr.astype(np.float64)
-        samples = list(data.values())[0].magnitude.size #BTS 4/27/2016
-        samples_written = c_int32()
-        task.WriteAnalogF64(samples, False, -1.0,
+        n_samples = data.values()[0].magnitude.size
+        n_samples_written = c_int32()
+        task.WriteAnalogF64(n_samples, False, -1.0,
                             mx.DAQmx_Val_GroupByChannel, arr,
-                            byref(samples_written), None)
+                            byref(n_samples_written), None)
 
 
 class _Task(object):
@@ -232,7 +223,7 @@ class _Task(object):
         fsamp = float(Q_(fsamp).to('Hz').magnitude)
         samples = int(samples)
         sample_mode = _sampleMode_map[mode]
-        clock = bytes(clock, 'utf-8') #BTS 4/27/2016
+        clock = bytes(clock)
         self.t.CfgSampClkTiming(clock, fsamp, edge, sample_mode, samples)
         # Save for later
         self.samples = samples
@@ -253,42 +244,42 @@ class _Task(object):
     def _handle_ai(self, ai):
         if isinstance(ai, int):
             s = '{}/ai{}'.format(self.dev.name, ai)
-        elif isinstance(ai, str): #BTS 4/27/2016
+        elif isinstance(ai, basestring):
             if ai.startswith(self.dev.name):
                 s = ai
             else:
                 s = '{}/{}'.format(self.dev.name, ai)
-        return s #BTS 4/27/2016
+        return s.encode('ascii')
 
     def _handle_ao(self, ao):
         if isinstance(ao, int):
             s = '{}/ao{}'.format(self.dev.name, ao)
-        elif isinstance(ao, str): #BTS 4/27/2016
+        elif isinstance(ao, basestring):
             if ao.startswith(self.dev.name):
                 s = ao
             else:
                 s = '{}/{}'.format(self.dev.name, ao)
-        return s #BTS 4/27/2016
+        return s.encode('ascii')
 
     def _handle_di(self, di):
         if isinstance(di, int):
             s = '{}/port{}'.format(self.dev.name, di)
-        elif isinstance(di, str): #BTS 4/27/2016
+        elif isinstance(di, basestring):
             if di.startswith(self.dev.name):
                 s = di
             else:
                 s = '{}/{}'.format(self.dev.name, di)
-        return s #BTS 4/27/2016
+        return s.encode('ascii')
 
     def _handle_do(self, do):
         if isinstance(do, int):
             s = '{}/port{}'.format(self.dev.name, do)
-        elif isinstance(do, str):
+        elif isinstance(do, basestring):
             if do.startswith(self.dev.name):
                 s = do
             else:
                 s = '{}/{}'.format(self.dev.name, do)
-        return s #BTS 4/27/2016
+        return s.encode('ascii')
 
     def _handle_ch_name(self, ch_name, ai_name):
         return ch_name.encode('ascii') if ch_name else b''
@@ -377,26 +368,27 @@ class _Task(object):
     def write_AO_channels(self, data, timeout=-1.0, autostart=True):
         if timeout != -1.0:
             timeout = float(Q_(timeout).to('s').magnitude)
-        arr = np.concatenate([data[ao.decode('utf-8')].to('V').magnitude for ao in self.AOs]).astype(np.float64) #BTS 4/27/2016
-        samples = list(data.values())[0].magnitude.size #BTS 4/27/2016
-        samples_written = c_int32()
-        self.t.WriteAnalogF64(samples, autostart, timeout,
+        arr = np.concatenate([data[ao].to('V').magnitude for ao in self.AOs]).astype(np.float64)
+        n_samples = data.values()[0].magnitude.size
+        n_samples_written = c_int32()
+        self.t.WriteAnalogF64(n_samples, autostart, timeout,
                               mx.DAQmx_Val_GroupByChannel, arr,
-                              byref(samples_written), None)
+                              byref(n_samples_written), None)
 
     def write_DO_channels(self, data, channels, timeout=-1.0, autostart=True):
         if timeout != -1.0:
             timeout = float(Q_(timeout).to('s').magnitude)
 
         arr = self._make_DO_array(data, channels)
-        samples = arr.size
-        samples_written = c_int32()
-        self.t.WriteDigitalU32(samples, autostart, timeout,
+        n_samples = arr.size
+        n_samples_written = c_int32()
+        self.t.WriteDigitalU32(n_samples, autostart, timeout,
                                mx.DAQmx_Val_GroupByChannel, arr,
-                               byref(samples_written), None)
+                               byref(n_samples_written), None)
 
     def _make_DO_array(self, data, channels):
         """ Get the port ordering in the final integer
+
         Parameters
         ----------
         data: dict
@@ -517,8 +509,10 @@ class AnalogIn(Channel):
 
     def read(self, duration=None, fsamp=None, n_samples=None):
         """Read one or more analog input samples.
+
         By default, reads and returns a single sample. If two of `duration`, `fsamp`,
         and `n_samples` are given, an array of samples is read and returned.
+
         Parameters
         ----------
         duration : Quantity
@@ -529,6 +523,7 @@ class AnalogIn(Channel):
             or `n_samples`.
         n_samples : int
             The number of samples to read. Use with `duration` or `fsamp`.
+
         Returns
         -------
         data : scalar or array Quantity
@@ -536,7 +531,7 @@ class AnalogIn(Channel):
         """
         with self.dev.create_task() as t:
             t.add_AI_channel(self.name)
-            
+
             num_specified = sum(int(arg is not None) for arg in (duration, fsamp, n_samples))
 
             if num_specified == 0:
@@ -570,9 +565,12 @@ class AnalogOut(Channel):
 
     def read(self, duration=None, fsamp=None, n_samples=None):
         """Read one or more analog output samples.
+
         Not supported by all DAQ models; requires the appropriate internal channel.
+
         By default, reads and returns a single sample. If two of `duration`, `fsamp`,
         and `n_samples` are given, an array of samples is read and returned.
+
         Parameters
         ----------
         duration : Quantity
@@ -583,6 +581,7 @@ class AnalogOut(Channel):
             or `n_samples`.
         n_samples : int
             The number of samples to read. Use with `duration` or `fsamp`.
+
         Returns
         -------
         data : scalar or array Quantity
@@ -613,13 +612,16 @@ class AnalogOut(Channel):
 
     def write(self, data, duration=None, reps=None, fsamp=None, freq=None, onboard=True):
         """Write a value or array to the analog output.
+
         If `data` is a scalar value, it is written to output and the function
         returns immediately. If `data` is an array of values, a buffered write
         is performed, writing each value in sequence at the rate determined by
         `duration` and `fsamp` or `freq`. You must specify either `fsamp` or
         `freq`.
+
         When writing an array, this function blocks until the output sequence
         has completed.
+
         Parameters
         ----------
         data : scalar or array Quantity
@@ -683,8 +685,11 @@ class Counter(Channel):
     def output_pulses(self, freq, duration=None, reps=None, idle_high=False, delay=None,
                       duty_cycle=0.5):
         """Generate digital pulses using the counter.
+
         Outputs digital pulses with a given frequency and duty cycle.
+
         This function blocks until the output sequence has completed.
+
         Parameters
         ----------
         freq : Quantity
@@ -846,6 +851,7 @@ class VirtualDigitalChannel(Channel):
 
     def write(self, value):
         """Write a value to the digital output channel
+
         Parameters
         ----------
         value : int or bool
@@ -859,10 +865,13 @@ class VirtualDigitalChannel(Channel):
 
     def write_sequence(self, data, duration=None, reps=None, fsamp=None, freq=None, onboard=True):
         """Write an array of samples to the digital output channel
+
         Outputs a buffered digital waveform, writing each value in sequence at
         the rate determined by `duration` and `fsamp` or `freq`. You must
         specify either `fsamp` or `freq`.
+
         This function blocks until the output sequence has completed.
+
         Parameters
         ----------
         data : array or list of ints or bools
@@ -922,7 +931,7 @@ def list_instruments():
     data = create_string_buffer(1000)
     mx.DAQmxGetSysDevNames(data, 1000)
 
-    dev_names = data.value.decode('utf-8').split(b',') #BTS 4/27/2016
+    dev_names = data.value.split(b',')
     instruments = []
     for dev_name in dev_names:
         dev_name = dev_name.strip("'")
@@ -1063,7 +1072,7 @@ class NIDAQ(DAQ):
         """ Call funcs with the signature (dev_name, data, data_len) """
         data = create_string_buffer(str_len)
         func(self.name, data, str_len)
-        return data.value.decode('utf-8') #BTS 4/27/2016 
+        return data.value
 
     def create_task(self):
         task = _Task(self)
