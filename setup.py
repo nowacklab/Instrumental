@@ -53,7 +53,7 @@ if __name__ == '__main__':
         license = about['__license__'],
         classifiers = classifiers,
         install_requires = ['numpy', 'pint>=0.6'],
-        **keywords
+        # **keywords
     )
 
     if not build_cffi_modules:
