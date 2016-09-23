@@ -55,7 +55,7 @@ if __name__ == '__main__':
         install_requires = ['numpy', 'pint>=0.6'],
         # **keywords
     )
-
-    if not build_cffi_modules:
-        print("\nPython cffi is not installed, so CFFI modules were not built. If you would like "
-              "to use cffi-based drivers, first install cffi, then rebuild Instrumental")
+    #
+    # if not build_cffi_modules:
+    #     print("\nPython cffi is not installed, so CFFI modules were not built. If you would like "
+    #           "to use cffi-based drivers, first install cffi, then rebuild Instrumental")
