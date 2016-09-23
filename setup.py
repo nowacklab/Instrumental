@@ -17,24 +17,24 @@ about = {}
 with open(os.path.join(base_dir, 'instrumental', '__about__.py')) as f:
     exec(f.read(), about)
 
-# Check for cffi
-try:
-    import cffi
-    build_cffi_modules = True
-except ImportError:
-    build_cffi_modules = False
-
-# Find all cffi build scripts
-keywords = {}
-if build_cffi_modules:
-    keywords['setup_requires'] = ["cffi>=1.0.0"]
-    modules = []
-    for dirpath, dirnames, filenames in os.walk('instrumental'):
-        basename = os.path.basename(dirpath)
-        for fname in filenames:
-            if basename == '_cffi_build' and fname.startswith('build_'):
-                modules.append(os.path.join(dirpath, fname) + ':ffi')
-    keywords['cffi_modules'] = modules
+# # Check for cffi
+# try:
+#     import cffi
+#     build_cffi_modules = True
+# except ImportError:
+#     build_cffi_modules = False
+#
+# # Find all cffi build scripts
+# keywords = {}
+# if build_cffi_modules:
+#     keywords['setup_requires'] = ["cffi>=1.0.0"]
+#     modules = []
+#     for dirpath, dirnames, filenames in os.walk('instrumental'):
+#         basename = os.path.basename(dirpath)
+#         for fname in filenames:
+#             if basename == '_cffi_build' and fname.startswith('build_'):
+#                 modules.append(os.path.join(dirpath, fname) + ':ffi')
+#     keywords['cffi_modules'] = modules
 
 if __name__ == '__main__':
     setup(
