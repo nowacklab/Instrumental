@@ -254,7 +254,7 @@ class Task(object):
         return res
 
     def _write_AO_channels(self, data):
-        if 'AO' not in self._mtasks:  # 7/12/2018 manual change from
+        if 'AO' not in self._mxtasks:  # 7/12/2018 manual change from
             return  # commit d6ea986d6bc4706a2a0a6e84618c0b743146a970
         task = self._mxtasks['AO']
         ao_names = [name for (name, ch) in self.channels.items() if ch.type == 'AO']
