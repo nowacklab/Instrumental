@@ -203,33 +203,54 @@ class Task(object):
                 task.CfgDigEdgeStartTrig(master_trig, mx.DAQmx_Val_Rising)
 
     def run(self, write_data=None):
+                                
+        self.write(write_data, autostart=True)
+        self.start()
+
+        try:
+            read_data = self.read()
+        finally:
+            self.stop()
+
+        return read_data
+
+    def write(self, write_data, autostart=True):
+        '''
+        Write data to output channels
+        '''
         # Need to make sure we get data array for each output channel (AO, DO, CO...)
         for ch_name, ch in self.channels.items():
-            if ch.type in ('AO', 'DO', 'CO') and ch_name not in write_data:
-                raise Exception('write_data missing an array for output channel {}'
+            if ch.type in ('AO', 'DO', 'CO'):
+                raise ValueError("Most provide write_data if using output channels")
+            elif ch_name not in write_data:
+                raise ValueError('write_data missing an array for output channel {}'
                                 .format(ch_name))
-                                
+
         # Then set up writes for each channel, don't auto-start
-        self._write_AO_channels(write_data)
+        self._write_AO_channels(write_data, autostart=autostart)
         # self.write_DO_channels()
         # self.write_CO_channels()
 
-        # Then manually start. Do we need triggering to launch all tasks at the
-        # same time? Do we only start the 'main' one? So many questions...
-        for typ, mxtask in self._mxtasks.items():
-            if typ != self.master_type:
-                mxtask.StartTask()
-        self._mxtasks[self.master_type].StartTask()  # Start the master last
-
-        # Lastly, read the data (e.g. using ReadAnalogF64)
+    def read(self):
         read_data = self._read_AI_channels()
+        return read_data
 
+    def stop(self):
         self._mxtasks[self.master_type].StopTask()  # Stop the master first
         for typ, mxtask in self._mxtasks.items():
             if typ != self.master_type:
                 mxtask.StopTask()
 
-        return read_data
+
+
+    def start(self):
+        '''
+        Start the task
+        '''
+        for typ, mxtask in self._mxtasks.items():
+            if typ != self.master_type:
+                mxtask.StartTask()
+        self._mxtasks[self.master_type].StartTask()  # Start the master last
 
     def _read_AI_channels(self):
         """ Returns a dict containing the AI buffers. """
