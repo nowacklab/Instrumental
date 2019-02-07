@@ -14,7 +14,7 @@ try:
     for attr in dir(mx):
         if attr.startswith('DAQmx_Val_'):
             setattr(mx, attr[10:], getattr(mx, attr))
-            
+
             # Manually taken from NI's support docs since there doesn't seem to be a DAQmx function to do
             # this... This list should include all possible internal channels for each type of device, and some
             # of these channels will not exist on a given device.
@@ -144,7 +144,7 @@ class Task(object):
                 channel, name = arg
                 channelarg.append(channel)
                 namearg.append(channel.name)
-        
+
         from re import split
         namearg, channelarg = zip(*sorted(zip(namearg, channelarg), key=lambda x: [int(y) if y.isdigit() else y for y in split('(\d+)', x[0])])) # sort by name/number
         for i in range(len(channelarg)):
@@ -275,6 +275,8 @@ class Task(object):
         return res
 
     def _write_AO_channels(self, data):
+        if 'AO' not in self._mxtasks:  # 7/12/2018 manual change from
+            return  # commit d6ea986d6bc4706a2a0a6e84618c0b743146a970
         task = self._mxtasks['AO']
         ao_names = [name for (name, ch) in self.channels.items() if ch.type == 'AO']
         ao_names.sort(key=lambda x: [int(s) if s.isdigit() else s for s in x.split()]) # key = function sorts by number preferentially
@@ -606,10 +608,10 @@ class AnalogIn(Channel):
         if range not in ranges:
             print('Invalid input range! DAQ input range set to +/-10 V. DAQ input range must be one of the following: %s' %''.join(str(ranges)))
             range = 10
-        self.range = range 
+        self.range = range
         #### BTS 7/7/2016 ####
 
-        
+
     def _add_to_task(self, mx_task):
     ### BTS 7/7/2016
         # min_mag, max_mag = self.dev.get_AO_max_range()
@@ -618,7 +620,7 @@ class AnalogIn(Channel):
                                     mx.DAQmx_Val_Volts, None)
 
     ### BTS 7/7/2016
-    
+
     def read(self, duration=None, fsamp=None, n_samples=None):
         """Read one or more analog input samples.
         By default, reads and returns a single sample. If two of `duration`, `fsamp`,
@@ -640,7 +642,7 @@ class AnalogIn(Channel):
         """
         with self.dev.create_task() as t:
             t.add_AI_channel(self.name, range=self.range) #BTS 7/7/2016
-            
+
             num_specified = sum(int(arg is not None) for arg in (duration, fsamp, n_samples))
 
             if num_specified == 0:
@@ -665,10 +667,10 @@ class AnalogOut(Channel):
         if range not in ranges:
             range = 10
             raise Exception('Invalid output range! DAQ output range set to +/-10 V. DAQ output range must be one of the following: %s' %''.join(str(ranges)))
-        self.range = range 
+        self.range = range
         #### BTS 7/7/2016 ####
 
-        
+
     def _add_to_task(self, mx_task):
     ### BTS 7/7/2016
         # min_mag, max_mag = self.dev.get_AO_max_range()
@@ -676,7 +678,7 @@ class AnalogOut(Channel):
                                     -self.range, self.range,
                                     mx.DAQmx_Val_Volts, None)
     ### BTS 7/7/2016
-                                    
+
     def _write_scalar(self, value):
         with self.dev.create_task() as t:
             t.add_AO_channel(self.name, range = self.range) #BTS7/7/2016
@@ -705,7 +707,7 @@ class AnalogOut(Channel):
         with self.dev.create_task() as t:
             internal_channel_name = "_{}_vs_aognd".format(self.name)
             try:
-                t.add_AI_channel(internal_channel_name, range=self.range) # BTS 7/7/2016 
+                t.add_AI_channel(internal_channel_name, range=self.range) # BTS 7/7/2016
             except mx.DAQError as e:
                 if e.error != -200170:
                     raise
@@ -1059,10 +1061,10 @@ class NIDAQ(DAQ):
         :py:func:`~instrumental.drivers.instrument`
         """
         self.name = dev_name
-                
+
         self.ai_range = ai_range
         self.ao_range = ao_range
-        
+
         self.tasks = []
         self._load_analog_channels()
         self._load_internal_channels()
@@ -1113,7 +1115,7 @@ class NIDAQ(DAQ):
         """ Call funcs with the signature (dev_name, data, data_len) """
         data = create_string_buffer(str_len)
         func(self.name, data, str_len)
-        return data.value.decode('utf-8') #BTS 4/27/2016 
+        return data.value.decode('utf-8') #BTS 4/27/2016
 
     def create_task(self):
         task = _Task(self)
