@@ -275,7 +275,7 @@ class Task(object):
         res['t'] = Q_(np.linspace(0, float(num_samples_read-1)/self.fsamp, num_samples_read), 's')
         return res
 
-    def _write_AO_channels(self, data):
+    def _write_AO_channels(self, data, autostart=True):
         if 'AO' not in self._mxtasks:  # 7/12/2018 manual change from
             return  # commit d6ea986d6bc4706a2a0a6e84618c0b743146a970
         task = self._mxtasks['AO']
@@ -285,7 +285,7 @@ class Task(object):
         arr = arr.astype(np.float64)
         samples = list(data.values())[0].magnitude.size #BTS 4/27/2016
         samples_written = c_int32()
-        task.WriteAnalogF64(samples, False, -1.0,
+        task.WriteAnalogF64(samples, autostart, -1.0,
                             mx.DAQmx_Val_GroupByChannel, arr,
                             byref(samples_written), None)
 
