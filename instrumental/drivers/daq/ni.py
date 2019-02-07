@@ -204,17 +204,18 @@ class Task(object):
 
     def run(self, write_data=None):
                                 
-        self.write(write_data, autostart=True)
+        self.write(write_data, autostart=False)
         self.start()
 
         try:
             read_data = self.read()
         finally:
             self.stop()
+            self.clear()
 
         return read_data
 
-    def write(self, write_data, autostart=True):
+    def write(self, write_data, autostart=False):
         '''
         Write data to output channels
         '''
@@ -274,6 +275,14 @@ class Task(object):
             res[ch.name] = Q_(data[start:stop], 'V')
         res['t'] = Q_(np.linspace(0, float(num_samples_read-1)/self.fsamp, num_samples_read), 's')
         return res
+
+    def clear(self):
+        '''
+        Clear the task and release its resources
+        '''
+        for mxtask in self._mxtasks.values():
+            mxtask.ClearTask()
+
 
     def _write_AO_channels(self, data, autostart=True):
         if 'AO' not in self._mxtasks:  # 7/12/2018 manual change from
