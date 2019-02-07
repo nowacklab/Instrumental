@@ -221,7 +221,8 @@ class Task(object):
         # Need to make sure we get data array for each output channel (AO, DO, CO...)
         for ch_name, ch in self.channels.items():
             if ch.type in ('AO', 'DO', 'CO'):
-                raise ValueError("Most provide write_data if using output channels")
+                if write_data is None:
+                    raise ValueError("Most provide write_data if using output channels")
             elif ch_name not in write_data:
                 raise ValueError('write_data missing an array for output channel {}'
                                 .format(ch_name))
