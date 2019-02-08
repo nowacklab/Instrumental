@@ -224,8 +224,8 @@ class Task(object):
             if ch.type in ('AO', 'DO', 'CO'):
                 if write_data is None:
                     raise ValueError("Most provide write_data if using output channels")
-            elif ch_name not in write_data:
-                raise ValueError('write_data missing an array for output channel {}'
+                elif ch_name not in write_data:
+                    raise ValueError('write_data missing an array for output channel {}'
                                 .format(ch_name))
 
         # Then set up writes for each channel, don't auto-start
